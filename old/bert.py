@@ -13,7 +13,7 @@ data = {'Questions': ["What percentage of people prefer cats over dogs?",
                       "When was the last census conducted?",
                       "Do you like pizza?"]}
 df = pd.DataFrame(data)
-
+print(df)
 # Label the questions (1 for numerical, 0 for non-numerical)
 df['IsNumerical'] = [1, 1, 1, 0, 0]
 
