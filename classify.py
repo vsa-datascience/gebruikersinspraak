@@ -19,8 +19,6 @@ client = OpenAI(
 
 
 def llm_classify(question, client):
-    # print(text_with_questions)
-    
     content = f"""Classes: [`statistic`, `non-statistic`]
         Example 1:
         Input: "Hoe sterk is het aantal fietsers op die route gestegen?."
@@ -41,18 +39,6 @@ def llm_classify(question, client):
         The output should only contain two words: statistic or non-statistic, and the probability with two decimal points.
 """
     
-#     prompt = f"""
-#                 Classify the following question as 'statistiek' or 'geen statistiek' whether the question is a question regarding a statistic or not 
-#                 respectively. A question is 'statistiek' in three cases: 
-#                 1) if the question asks for a number or statistic, for example: 'Wat is het gemiddeld inkomen per gemeente?'
-#                 2) if the question asks about the method or quality of the number or statistic, for example: 'Hoe wordt de hoeveelheid grensverkeer gemeten?'
-#                 3) if the question asks if or when the statistic is published, for example: 'Wanneer is de nieuwe statistiek over stikstof productie bekend?'
-                
-#                 If the question does not correspond to one of the criteria, lable it as 'geen statistiek'.
-#                 All questions are asked in dutch. Only return the label statistiek/geen statistiek
-                
-#                 The question to classify: {question}
-#     """
     
     completion = client.chat.completions.create(
         model="gpt-4",
@@ -70,14 +56,9 @@ def llm_classify(question, client):
     )
 
     label = (completion.choices[0].message.content)
-    print(label)
     return label
 
 
-# for q in df['vraag']:
-#     print(q)
-#     print('--')
-#     llm_classify(q, client)
     
     
 df['label'] = df['vraag'].apply(llm_classify, args=(client,))
