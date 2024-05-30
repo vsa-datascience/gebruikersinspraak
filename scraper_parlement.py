@@ -2,10 +2,11 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from docx import Document
 import PyPDF2
 import io
 
-
+    
 def scrape_pdf_links(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
@@ -23,11 +24,12 @@ def scrape_verslag_links(url):
 
 def extract_text_from_pdf(pdf_content):
     pdf_content = io.BytesIO(pdf_content)
-
     reader = PyPDF2.PdfReader(pdf_content)
     text = ""
     for page in range(len(reader.pages)):
         text += reader.pages[page].extract_text()
+    # print(pdf_content)
+
     return text
 
 
@@ -56,16 +58,23 @@ def download_and_convert_pdf(pdf_url, download_dir):
     pdf_id = pdf_url.split("=")[-1]
     
     # Download the PDF file
-    pdf_response = requests.get(pdf_url)
+    pdf_response = requests.get(pdf_url)  
     pdf_content = pdf_response.content
     
+    eof_marker = pdf_content[-4:]
+    is_pdf = b'EOF\n' in eof_marker
     # Extract text from PDF content
-    text = extract_text_from_pdf(pdf_content)
+
+    if is_pdf: 
+        text = extract_text_from_pdf(pdf_content)
+
+    else:
+        doc = Document(io.BytesIO(pdf_response.content))
+        text = "\n".join([para.text for para in doc.paragraphs])
     
     text_filename = os.path.join(download_dir, f"{pdf_id}.txt")
     with open(text_filename, "w", encoding="utf-8") as text_file:
-        text_file.write(text)
-        
+            text_file.write(text)
     
     return pdf_id, text
 
@@ -75,15 +84,15 @@ base_url = "https://www.vlaamsparlement.be/nl/parlementaire-documenten"
 query_params = {
     "page": 0,
     "period": "custom",
-    "start_period": "2024-01-01",
-    "end_period": "2024-01-15",
+    "start_period": "2019-06-01",
+    "end_period": "2024-05-30",
     "aggregaat[]": "Vraag of interpellatie"
 }
 
 
 
 # Directory to save the downloaded PDFs
-download_dir = "questions"
+download_dir = "documents"
 os.makedirs(download_dir, exist_ok=True)
 
 
@@ -101,10 +110,10 @@ while True:
             print(link)
             download_verslag(link, download_dir)
  
-    # if pdf_links: 
-    #     for pdf_link in pdf_links:
-    #         print(pdf_link)
-    #         download_and_convert_pdf(pdf_link, download_dir)
+    if pdf_links: 
+        for pdf_link in pdf_links:
+            print(pdf_link)
+            download_and_convert_pdf(pdf_link, download_dir)
     
     page_num += 1
     
