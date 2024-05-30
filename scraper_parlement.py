@@ -79,6 +79,32 @@ def download_and_convert_pdf(pdf_url, download_dir):
     return pdf_id, text
 
 
+def iterate_scraper_over_pages(base_url, query_params):
+    # Directory to save the downloaded PDFs
+    download_dir = "documents"
+    os.makedirs(download_dir, exist_ok=True)
+
+    # Iterate over pages and scrape PDF links
+    page_num = query_params["page"]
+    while True:
+        query_params["page"] = page_num
+        url = base_url + "?" + "&".join([f"{k}={v}" for k, v in query_params.items()])
+        print(url)
+        pdf_links = scrape_pdf_links(url)
+        verslag_links = scrape_verslag_links(url)
+
+        if verslag_links: 
+            for link in verslag_links:
+                print(link)
+                download_verslag(link, download_dir)
+
+        if pdf_links: 
+            for pdf_link in pdf_links:
+                print(pdf_link)
+                download_and_convert_pdf(pdf_link, download_dir)
+
+        page_num += 1
+
 
 base_url = "https://www.vlaamsparlement.be/nl/parlementaire-documenten"
 query_params = {
@@ -91,30 +117,7 @@ query_params = {
 
 
 
-# Directory to save the downloaded PDFs
-download_dir = "documents"
-os.makedirs(download_dir, exist_ok=True)
+iterate_scraper_over_pages(base_url, query_params)
 
-
-# Iterate over pages and scrape PDF links
-page_num = 0
-while True:
-    query_params["page"] = page_num
-    url = base_url + "?" + "&".join([f"{k}={v}" for k, v in query_params.items()])
-    print(url)
-    pdf_links = scrape_pdf_links(url)
-    verslag_links = scrape_verslag_links(url)
-
-    if verslag_links: 
-        for link in verslag_links:
-            print(link)
-            download_verslag(link, download_dir)
- 
-    if pdf_links: 
-        for pdf_link in pdf_links:
-            print(pdf_link)
-            download_and_convert_pdf(pdf_link, download_dir)
-    
-    page_num += 1
     
     
