@@ -113,8 +113,14 @@ def iterate_scraper_over_pages(base_url, query_params):
         url = base_url + "?" + "&".join([f"{k}={v}" for k, v in query_params.items()])
         print(url)
         # obtain the links of files and webpages respectively for the current page
-        pdf_links = scrape_pdf_links(url)
+        pdf_links = scrape_file_links(url)
         verslag_links = scrape_verslag_links(url)
+        
+        # If no links are found, we are on the last page
+        if not pdf_links and not verslag_links:
+            print(f"{page_num} is last page")
+            break
+            
         # link directs to web page
         if verslag_links: 
             for link in verslag_links:
