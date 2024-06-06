@@ -1,121 +1,88 @@
+from openai import OpenAI
+from dotenv import load_dotenv
 import os
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-from docx import Document
-import PyPDF2
-import io
-import re
-    
-def scrape_pdf_links(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, "html.parser")
-    pdf_links = soup.find_all("a", string="Download pdf")
-    return [urljoin(url, link["href"]) for link in pdf_links]
+import pandas as pd
+import re 
+
+load_dotenv()
+sourcefolder = f"documents/"
+txt_files = os.listdir(sourcefolder)
+txt_files.remove(".ipynb_checkpoints")
 
 
-def scrape_verslag_links(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, "html.parser")
-    pdf_links = soup.find_all("a", string="Bekijk het verslag")
-    return [urljoin(url, link["href"]) for link in pdf_links]
+def read_file_to_string(f):
+    file_path = "documents/" + f
+    with open(file_path, 'r') as file:
+        file_content = file.read()
+        file_content = file_content.replace('\n', ' ')
+    return file_content
 
 
-
-def extract_text_from_pdf(pdf_content):
-    pdf_content = io.BytesIO(pdf_content)
-    reader = PyPDF2.PdfReader(pdf_content)
-    text = ""
-    for page in range(len(reader.pages)):
-        text += reader.pages[page].extract_text()
-    # print(pdf_content)
-
-    return text
-
-
-def download_verslag(page_url, download_dir):
-    # Extract the ID from the URL
-    verslag_id = page_url.split("/")[-1] 
-     
-    response = requests.get(page_url)
-    soup = BeautifulSoup(response.content, "html.parser")
-    
-    # Extract and print the text from each <p> tag
-    
-    text = ""
-    paragraphs = soup.find_all('p')
-    for p in paragraphs:
-        text += p.get_text() + "\n"
-
-    
-    text_filename = os.path.join(download_dir, f"{verslag_id}.txt")
-    with open(text_filename, "w", encoding="utf-8") as text_file:
-        text_file.write(text)
+# unused: find questions with regex
+# def find_questions(text_with_questions):
+#         # pattern = r'\b.*\?'
+#         # questions = re.findall(pattern, text_with_questions)
         
-
-def download_and_convert_pdf(pdf_url, download_dir):
-    # Extract the ID from the URL
-    pdf_id = pdf_url.split("=")[-1]
+#         sentences = re.split(r'(?<=[.!?])\s+', text_with_questions)
+#         pattern = r'\b.*\?'
+#         questions = []
+#         for sentence in sentences:
+#             match = re.match(pattern, sentence)
+#             if match:
+#                 questions.append(match.group())
+                
+#         return questions
     
-    # Download the PDF file
-    pdf_response = requests.get(pdf_url)
-    pdf_content = pdf_response.content
     
-    contentType = pdf_response.headers['content-type']
-    eof_marker = pdf_content[-4:]
-    is_pdf = b'EOF\n' in eof_marker
-    # Extract text from PDF content
-
-    if is_pdf or pdf_response.headers['content-type'] == 'application/pdf': 
-        text = extract_text_from_pdf(pdf_content)
-
-    else:
-        doc = Document(io.BytesIO(pdf_response.content))
-        text = "\n".join([para.text for para in doc.paragraphs])
+def llm_call(text_with_questions, client):    
+    prompt = f"""
+                Retrieve all the questions that are asked in the sources below. If the quesion itself does not contain enough information to be able the answer 
+                by only reading the question, use the information in the sources and only the infomation present in that sources to rewrite the question such 
+                that question contains all the necessary information by itself to be able to answer it fully. 
+                The answers should be in  the language the text is written in.
+                Respond by returning the following format: Q1: question 1, Q2: question 2, Q3: question 3, Q4: question 4, ...
+                sources: {text_with_questions}
+                your answer:
+    """
     
-    text_filename = os.path.join(download_dir, f"{pdf_id}.txt")
-    with open(text_filename, "w", encoding="utf-8") as text_file:
-            text_file.write(text)
-    
-    return pdf_id, text
+    completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        # temperature = 0.0,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ]
+    )
+
+    questions_out = (completion.choices[0].message.content)
+    return questions_out
 
 
-def iterate_scraper_over_pages(base_url, query_params):
-    # Directory to save the downloaded PDFs
-    download_dir = "documents"
-    os.makedirs(download_dir, exist_ok=True)
+def iterate_documents(client):
+    quesions_list = []
+    for f in txt_files:
+        # read file into string value
+        text_with_questions = read_file_to_string(f)
+        # identify questions with llm call
+        questions_out_llm = llm_call(text_with_questions, client)
+        # output into a pd dataframe
+        questions_list = questions_out_llm.split("\n")
+        df = pd.DataFrame()
+        df['vraag'] = questions_list
+        quesions_list.append(df)
 
-    # Iterate over pages and scrape PDF links
-    page_num = query_params["page"]
-    while True:
-        query_params["page"] = page_num
-        url = base_url + "?" + "&".join([f"{k}={v}" for k, v in query_params.items()])
-        print(url)
-        pdf_links = scrape_pdf_links(url)
-        verslag_links = scrape_verslag_links(url)
-
-        if verslag_links: 
-            for link in verslag_links:
-                print(link)
-                download_verslag(link, download_dir)
-
-        if pdf_links: 
-            for pdf_link in pdf_links:
-                print(pdf_link)
-                download_and_convert_pdf(pdf_link, download_dir)
-
-        page_num += 1
+    # output questions into csv file
+    all_questions =  pd.concat(quesions_list, axis=0)
+    all_questions.to_csv('questions/parlementaire_vragen.csv', index =False)
 
 
-base_url = "https://www.vlaamsparlement.be/nl/parlementaire-documenten"
-query_params = {
-    "page": 0,
-    "period": "custom",
-    "start_period": "2019-06-01",
-    "end_period": "2024-05-30",
-    "aggregaat[]": "Vraag of interpellatie"
-}
 
+api_key = os.getenv('SECRET_KEY')
+client = OpenAI(
+  api_key=api_key,
+)
 
-iterate_scraper_over_pages(base_url, query_params)
-    
+iterate_documents(client)
