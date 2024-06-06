@@ -8,14 +8,10 @@ load_dotenv()
 sourcefolder = f"questions/parlementaire_vragen.csv"
 targetfolder = f"labeled/parlementaire_vragen.csv"
 
-df = pd.read_csv(sourcefolder)
-
 api_key = os.getenv('SECRET_KEY')
-
 client = OpenAI(
   api_key=api_key,
 )
-
 
 
 def llm_classify(question, client):
@@ -39,14 +35,11 @@ def llm_classify(question, client):
         The output should only contain two words: statistic or non-statistic, and the probability with two decimal points.
 """
     
-    
     completion = client.chat.completions.create(
         model="gpt-4",
         # model="gpt-3.5-turbo",
         temperature = 0.0,
         messages=[
-            # {"role": "system", "content": f"{prompt}"},
-            # {"role": "user", "content": f"{text_with_questions}"}
             {"role": "system", "content": "You are a helpful assistant."},
             {
                 "role": "user",
@@ -59,9 +52,10 @@ def llm_classify(question, client):
     return label
 
 
-    
-    
-df['label'] = df['vraag'].apply(llm_classify, args=(client,))
-print(df)
 
+# read file with questions
+df = pd.read_csv(sourcefolder)
+# classify each question  
+df['label'] = df['vraag'].apply(llm_classify, args=(client,))
+# file to csv
 df.to_csv(targetfolder, index = False)
